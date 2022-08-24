@@ -49,12 +49,12 @@ class Board {
   createGrid() {
     let tableHTML = '';
     for (let r = 0; r < this.height; r++) {
-      let currentArrayRow = [];
+      const currentArrayRow = [];
       let currentHTMLRow = `<tr id="row ${r}">`;
       for (let c = 0; c < this.width; c++) {
-        let newNodeId = `${r}-${c}`,
-          newNodeClass,
-          newNode;
+        const newNodeId = `${r}-${c}`;
+        let newNodeClass;
+        let newNode;
         if (r === Math.floor(this.height / 2) && c === Math.floor(this.width / 4)) {
           newNodeClass = 'start';
           this.start = `${newNodeId}`;
@@ -72,17 +72,17 @@ class Board {
       this.boardArray.push(currentArrayRow);
       tableHTML += `${currentHTMLRow}</tr>`;
     }
-    let board = document.getElementById('board');
+    const board = document.getElementById('board');
     board.innerHTML = tableHTML;
   }
 
   addEventListeners() {
-    let board = this;
+    const board = this;
     for (let r = 0; r < board.height; r++) {
       for (let c = 0; c < board.width; c++) {
-        let currentId = `${r}-${c}`;
-        let currentNode = board.getNode(currentId);
-        let currentElement = document.getElementById(currentId);
+        const currentId = `${r}-${c}`;
+        const currentNode = board.getNode(currentId);
+        const currentElement = document.getElementById(currentId);
         currentElement.onmousedown = (e) => {
           e.preventDefault();
           if (this.buttonsOn) {
@@ -145,15 +145,15 @@ class Board {
   }
 
   getNode(id) {
-    let coordinates = id.split('-');
-    let r = parseInt(coordinates[0]);
-    let c = parseInt(coordinates[1]);
+    const coordinates = id.split('-');
+    const r = parseInt(coordinates[0]);
+    const c = parseInt(coordinates[1]);
     return this.boardArray[r][c];
   }
 
   changeSpecialNode(currentNode) {
-    let element = document.getElementById(currentNode.id),
-      previousElement;
+    const element = document.getElementById(currentNode.id);
+    let previousElement;
     if (this.previouslySwitchedNode) previousElement = document.getElementById(this.previouslySwitchedNode.id);
     if (currentNode.status !== 'target' && currentNode.status !== 'start' && currentNode.status !== 'object') {
       if (this.previouslySwitchedNode) {
@@ -180,9 +180,9 @@ class Board {
   }
 
   changeNormalNode(currentNode) {
-    let element = document.getElementById(currentNode.id);
-    let relevantStatuses = ['start', 'target', 'object'];
-    let unweightedAlgorithms = ['dfs', 'bfs'];
+    const element = document.getElementById(currentNode.id);
+    const relevantStatuses = ['start', 'target', 'object'];
+    const unweightedAlgorithms = ['dfs', 'bfs'];
     if (!this.keyDown) {
       if (!relevantStatuses.includes(currentNode.status)) {
         element.className = currentNode.status !== 'wall' ? 'wall' : 'unvisited';
@@ -271,10 +271,70 @@ class Board {
   }
 
   drawShortestPathTimeout(targetNodeId, startNodeId, type, object) {
-    let board = this;
+    const board = this;
     let currentNode;
     let secondCurrentNode;
     let currentNodesToAnimate;
+
+    const shortestPathChange = (currentNode, previousNode, isActualTarget) => {
+      if (currentNode === 'object') {
+        const element = document.getElementById(board.object);
+        element.className = 'objectTransparent';
+      } else if (currentNode.id !== board.start) {
+        if (currentNode.id !== board.target || (currentNode.id === board.target && isActualTarget)) {
+          const currentHTMLNode = document.getElementById(currentNode.id);
+          if (type === 'unweighted') {
+            currentHTMLNode.className = 'shortest-path-unweighted';
+          } else {
+            let direction;
+            if (currentNode.relatesToObject && !currentNode.overwriteObjectRelation && currentNode.id !== board.target) {
+              direction = 'storedDirection';
+              currentNode.overwriteObjectRelation = true;
+            } else {
+              direction = 'direction';
+            }
+            if (currentNode[direction] === 'up') {
+              currentHTMLNode.className = 'shortest-path-up';
+            } else if (currentNode[direction] === 'down') {
+              currentHTMLNode.className = 'shortest-path-down';
+            } else if (currentNode[direction] === 'right') {
+              currentHTMLNode.className = 'shortest-path-right';
+            } else if (currentNode[direction] === 'left') {
+              currentHTMLNode.className = 'shortest-path-left';
+            } else {
+              currentHTMLNode.className = 'shortest-path';
+            }
+          }
+        }
+      }
+      if (previousNode) {
+        if (previousNode !== 'object' && previousNode.id !== board.target && previousNode.id !== board.start) {
+          const previousHTMLNode = document.getElementById(previousNode.id);
+          previousHTMLNode.className = previousNode.weight === 15 ? 'shortest-path weight' : 'shortest-path';
+        }
+      } else {
+        const element = document.getElementById(board.start);
+        element.className = 'startTransparent';
+      }
+    };
+
+    const timeout = (index) => {
+      if (!currentNodesToAnimate.length) currentNodesToAnimate.push(board.nodes[board.start]);
+      setTimeout(() => {
+        if (index === 0) {
+          shortestPathChange(currentNodesToAnimate[index]);
+        } else if (index < currentNodesToAnimate.length) {
+          shortestPathChange(currentNodesToAnimate[index], currentNodesToAnimate[index - 1]);
+        } else if (index === currentNodesToAnimate.length) {
+          shortestPathChange(board.nodes[board.target], currentNodesToAnimate[index - 1], 'isActualTarget');
+        }
+        if (index > currentNodesToAnimate.length) {
+          board.toggleButtons();
+          return;
+        }
+        timeout(index + 1);
+      }, 40);
+    };
 
     if (board.currentAlgorithm !== 'bidirectional') {
       currentNode = board.nodes[board.nodes[targetNodeId].previousNode];
@@ -323,80 +383,20 @@ class Board {
         }
       } else {
         currentNodesToAnimate = [];
-        let target = board.nodes[board.target];
+        const target = board.nodes[board.target];
         currentNodesToAnimate.push(board.nodes[target.previousNode], target);
       }
     }
 
     timeout(0);
-
-    function timeout(index) {
-      if (!currentNodesToAnimate.length) currentNodesToAnimate.push(board.nodes[board.start]);
-      setTimeout(function () {
-        if (index === 0) {
-          shortestPathChange(currentNodesToAnimate[index]);
-        } else if (index < currentNodesToAnimate.length) {
-          shortestPathChange(currentNodesToAnimate[index], currentNodesToAnimate[index - 1]);
-        } else if (index === currentNodesToAnimate.length) {
-          shortestPathChange(board.nodes[board.target], currentNodesToAnimate[index - 1], 'isActualTarget');
-        }
-        if (index > currentNodesToAnimate.length) {
-          board.toggleButtons();
-          return;
-        }
-        timeout(index + 1);
-      }, 40);
-    }
-
-    function shortestPathChange(currentNode, previousNode, isActualTarget) {
-      if (currentNode === 'object') {
-        let element = document.getElementById(board.object);
-        element.className = 'objectTransparent';
-      } else if (currentNode.id !== board.start) {
-        if (currentNode.id !== board.target || (currentNode.id === board.target && isActualTarget)) {
-          let currentHTMLNode = document.getElementById(currentNode.id);
-          if (type === 'unweighted') {
-            currentHTMLNode.className = 'shortest-path-unweighted';
-          } else {
-            let direction;
-            if (currentNode.relatesToObject && !currentNode.overwriteObjectRelation && currentNode.id !== board.target) {
-              direction = 'storedDirection';
-              currentNode.overwriteObjectRelation = true;
-            } else {
-              direction = 'direction';
-            }
-            if (currentNode[direction] === 'up') {
-              currentHTMLNode.className = 'shortest-path-up';
-            } else if (currentNode[direction] === 'down') {
-              currentHTMLNode.className = 'shortest-path-down';
-            } else if (currentNode[direction] === 'right') {
-              currentHTMLNode.className = 'shortest-path-right';
-            } else if (currentNode[direction] === 'left') {
-              currentHTMLNode.className = 'shortest-path-left';
-            } else {
-              currentHTMLNode.className = 'shortest-path';
-            }
-          }
-        }
-      }
-      if (previousNode) {
-        if (previousNode !== 'object' && previousNode.id !== board.target && previousNode.id !== board.start) {
-          let previousHTMLNode = document.getElementById(previousNode.id);
-          previousHTMLNode.className = previousNode.weight === 15 ? 'shortest-path weight' : 'shortest-path';
-        }
-      } else {
-        let element = document.getElementById(board.start);
-        element.className = 'startTransparent';
-      }
-    }
   }
 
   createMazeOne(type) {
     Object.keys(this.nodes).forEach((node) => {
-      let random = Math.random();
-      let currentHTMLNode = document.getElementById(node);
-      let relevantClassNames = ['start', 'target', 'object'];
-      let randomTwo = type === 'wall' ? 0.25 : 0.35;
+      const random = Math.random();
+      const currentHTMLNode = document.getElementById(node);
+      const relevantClassNames = ['start', 'target', 'object'];
+      const randomTwo = type === 'wall' ? 0.25 : 0.35;
       if (random < randomTwo && !relevantClassNames.includes(currentHTMLNode.className)) {
         if (type === 'wall') {
           currentHTMLNode.className = 'wall';
@@ -413,9 +413,9 @@ class Board {
 
   clearPath(clickedButton) {
     if (clickedButton) {
-      let start = this.nodes[this.start];
-      let target = this.nodes[this.target];
-      let object = this.numberOfObjects ? this.nodes[this.object] : null;
+      const start = this.nodes[this.start];
+      const target = this.nodes[this.target];
+      const object = this.numberOfObjects ? this.nodes[this.object] : null;
       start.status = 'start';
       document.getElementById(start.id).className = 'start';
       target.status = 'target';
@@ -432,8 +432,8 @@ class Board {
       } else {
         this.clearPath('clickedButton');
         this.toggleButtons();
-        let weightedAlgorithms = ['dijkstra', 'CLA', 'greedy'];
-        let unweightedAlgorithms = ['dfs', 'bfs'];
+        const weightedAlgorithms = ['dijkstra', 'CLA', 'greedy'];
+        const unweightedAlgorithms = ['dfs', 'bfs'];
         let success;
         if (this.currentAlgorithm === 'bidirectional') {
           if (!this.numberOfObjects) {
@@ -479,7 +479,7 @@ class Board {
 
     this.algoDone = false;
     Object.keys(this.nodes).forEach((id) => {
-      let currentNode = this.nodes[id];
+      const currentNode = this.nodes[id];
       currentNode.previousNode = null;
       currentNode.distance = Infinity;
       currentNode.totalDistance = Infinity;
@@ -491,8 +491,8 @@ class Board {
       currentNode.otherpreviousNode = null;
       currentNode.otherdistance = Infinity;
       currentNode.otherdirection = null;
-      let currentHTMLNode = document.getElementById(id);
-      let relevantStatuses = ['wall', 'start', 'target', 'object'];
+      const currentHTMLNode = document.getElementById(id);
+      const relevantStatuses = ['wall', 'start', 'target', 'object'];
       if ((!relevantStatuses.includes(currentNode.status) || currentHTMLNode.className === 'visitedobject') && currentNode.weight !== 15) {
         currentNode.status = 'unvisited';
         currentHTMLNode.className = 'unvisited';
@@ -506,8 +506,8 @@ class Board {
   clearWalls() {
     this.clearPath('clickedButton');
     Object.keys(this.nodes).forEach((id) => {
-      let currentNode = this.nodes[id];
-      let currentHTMLNode = document.getElementById(id);
+      const currentNode = this.nodes[id];
+      const currentHTMLNode = document.getElementById(id);
       if (currentNode.status === 'wall' || currentNode.weight === 15) {
         currentNode.status = 'unvisited';
         currentNode.weight = 0;
@@ -518,8 +518,8 @@ class Board {
 
   clearWeights() {
     Object.keys(this.nodes).forEach((id) => {
-      let currentNode = this.nodes[id];
-      let currentHTMLNode = document.getElementById(id);
+      const currentNode = this.nodes[id];
+      const currentHTMLNode = document.getElementById(id);
       if (currentNode.weight === 15) {
         currentNode.status = 'unvisited';
         currentNode.weight = 0;
@@ -530,14 +530,14 @@ class Board {
 
   clearNodeStatuses() {
     Object.keys(this.nodes).forEach((id) => {
-      let currentNode = this.nodes[id];
+      const currentNode = this.nodes[id];
       currentNode.previousNode = null;
       currentNode.distance = Infinity;
       currentNode.totalDistance = Infinity;
       currentNode.heuristicDistance = null;
       currentNode.storedDirection = currentNode.direction;
       currentNode.direction = null;
-      let relevantStatuses = ['wall', 'start', 'target', 'object'];
+      const relevantStatuses = ['wall', 'start', 'target', 'object'];
       if (!relevantStatuses.includes(currentNode.status)) {
         currentNode.status = 'unvisited';
       }
@@ -545,8 +545,8 @@ class Board {
   }
 
   instantAlgorithm() {
-    let weightedAlgorithms = ['dijkstra', 'CLA', 'greedy'];
-    let unweightedAlgorithms = ['dfs', 'bfs'];
+    const weightedAlgorithms = ['dijkstra', 'CLA', 'greedy'];
+    const unweightedAlgorithms = ['dfs', 'bfs'];
     let success;
     if (this.currentAlgorithm === 'bidirectional') {
       if (!this.numberOfObjects) {
@@ -610,15 +610,15 @@ class Board {
   }
 
   resetHTMLNodes() {
-    let start = document.getElementById(this.start);
-    let target = document.getElementById(this.target);
+    const start = document.getElementById(this.start);
+    const target = document.getElementById(this.target);
     start.className = 'start';
     target.className = 'target';
   }
 
   changeStartNodeImages() {
-    let unweighted = ['bfs', 'dfs'];
-    let guaranteed = ['dijkstra', 'astar'];
+    const unweighted = ['bfs', 'dfs'];
+    const guaranteed = ['dijkstra', 'astar'];
     let name = '';
     if (this.currentAlgorithm === 'bfs') {
       name = 'Breath-first Search';
@@ -645,8 +645,8 @@ class Board {
       }
       document.getElementById('weightLegend').className = 'strikethrough';
       for (let i = 0; i < 14; i++) {
-        let j = i.toString();
-        let backgroundImage = document.styleSheets['1'].rules[j].style.backgroundImage;
+        const j = i.toString();
+        const backgroundImage = document.styleSheets['1'].rules[j].style.backgroundImage;
         document.styleSheets['1'].rules[j].style.backgroundImage = backgroundImage.replace('triangle', 'spaceship');
       }
     } else {
@@ -655,8 +655,8 @@ class Board {
       }
       document.getElementById('weightLegend').className = '';
       for (let i = 0; i < 14; i++) {
-        let j = i.toString();
-        let backgroundImage = document.styleSheets['1'].rules[j].style.backgroundImage;
+        const j = i.toString();
+        const backgroundImage = document.styleSheets['1'].rules[j].style.backgroundImage;
         document.styleSheets['1'].rules[j].style.backgroundImage = backgroundImage.replace('spaceship', 'triangle');
       }
     }
@@ -674,27 +674,9 @@ class Board {
   }
 
   toggleTutorialButtons() {
-    document.getElementById('skipButton').onclick = () => {
-      document.getElementById('tutorial').style.display = 'none';
-      this.toggleButtons();
-    };
+    const board = this;
 
-    if (document.getElementById('nextButton')) {
-      document.getElementById('nextButton').onclick = () => {
-        if (counter < 9) counter++;
-        nextPreviousClick();
-        this.toggleTutorialButtons();
-      };
-    }
-
-    document.getElementById('previousButton').onclick = () => {
-      if (counter > 1) counter--;
-      nextPreviousClick();
-      this.toggleTutorialButtons();
-    };
-
-    let board = this;
-    function nextPreviousClick() {
+    const nextPreviousClick = () => {
       if (counter === 1) {
         document.getElementById('tutorial').innerHTML = `<h3>Welcome to Pathfinding Visualizer!</h3><h6>This short tutorial will walk you through all of the features of this application.</h6><p>If you want to dive right in, feel free to press the "Skip Tutorial" button below. Otherwise, press "Next"!</p><div id="tutorialCounter">1/9</div><img id="mainTutorialImage" src="/styling/c_icon.png"><button id="nextButton" class="btn btn-default navbar-btn" type="button">Next</button><button id="previousButton" class="btn btn-default navbar-btn" type="button">Previous</button><button id="skipButton" class="btn btn-default navbar-btn" type="button">Skip Tutorial</button>`;
       } else if (counter === 2) {
@@ -718,7 +700,26 @@ class Board {
           board.toggleButtons();
         };
       }
+    };
+
+    document.getElementById('skipButton').onclick = () => {
+      document.getElementById('tutorial').style.display = 'none';
+      this.toggleButtons();
+    };
+
+    if (document.getElementById('nextButton')) {
+      document.getElementById('nextButton').onclick = () => {
+        if (counter < 9) counter++;
+        nextPreviousClick();
+        this.toggleTutorialButtons();
+      };
     }
+
+    document.getElementById('previousButton').onclick = () => {
+      if (counter > 1) counter--;
+      nextPreviousClick();
+      this.toggleTutorialButtons();
+    };
   }
 
   toggleButtons() {
@@ -735,8 +736,8 @@ class Board {
         } else {
           this.clearPath('clickedButton');
           this.toggleButtons();
-          let weightedAlgorithms = ['dijkstra', 'CLA', 'CLA', 'greedy'];
-          let unweightedAlgorithms = ['dfs', 'bfs'];
+          const weightedAlgorithms = ['dijkstra', 'CLA', 'CLA', 'greedy'];
+          const unweightedAlgorithms = ['dfs', 'bfs'];
           let success;
           if (this.currentAlgorithm === 'bidirectional') {
             if (!this.numberOfObjects) {
@@ -810,7 +811,7 @@ class Board {
         this.currentAlgorithm = 'bidirectional';
         this.currentHeuristic = 'manhattanDistance';
         if (this.numberOfObjects) {
-          let objectNodeId = this.object;
+          const objectNodeId = this.object;
           document.getElementById('startButtonAddObject').innerHTML = '<a href="#">Add a Bomb</a></li>';
           document.getElementById(objectNodeId).className = 'unvisited';
           this.object = null;
@@ -892,16 +893,16 @@ class Board {
       document.getElementById('startButtonClearBoard').onclick = () => {
         document.getElementById('startButtonAddObject').innerHTML = '<a href="#">Add Bomb</a></li>';
 
-        let navbarHeight = document.getElementById('navbarDiv').clientHeight;
-        let textHeight = document.getElementById('mainText').clientHeight + document.getElementById('algorithmDescriptor').clientHeight;
-        let height = Math.floor((document.documentElement.clientHeight - navbarHeight - textHeight) / 28);
-        let width = Math.floor(document.documentElement.clientWidth / 25);
-        let start = Math.floor(height / 2).toString() + '-' + Math.floor(width / 4).toString();
-        let target = Math.floor(height / 2).toString() + '-' + Math.floor((3 * width) / 4).toString();
+        const navbarHeight = document.getElementById('navbarDiv').clientHeight;
+        const textHeight = document.getElementById('mainText').clientHeight + document.getElementById('algorithmDescriptor').clientHeight;
+        const height = Math.floor((document.documentElement.clientHeight - navbarHeight - textHeight) / 28);
+        const width = Math.floor(document.documentElement.clientWidth / 25);
+        const start = Math.floor(height / 2).toString() + '-' + Math.floor(width / 4).toString();
+        const target = Math.floor(height / 2).toString() + '-' + Math.floor((3 * width) / 4).toString();
 
         Object.keys(this.nodes).forEach((id) => {
-          let currentNode = this.nodes[id];
-          let currentHTMLNode = document.getElementById(id);
+          const currentNode = this.nodes[id];
+          const currentHTMLNode = document.getElementById(id);
           if (id === start) {
             currentHTMLNode.className = 'start';
             currentNode.status = 'start';
@@ -967,12 +968,12 @@ class Board {
       };
 
       document.getElementById('startButtonAddObject').onclick = () => {
-        let innerHTML = document.getElementById('startButtonAddObject').innerHTML;
+        const innerHTML = document.getElementById('startButtonAddObject').innerHTML;
         if (this.currentAlgorithm !== 'bidirectional') {
           if (innerHTML.includes('Add')) {
-            let r = Math.floor(this.height / 2);
-            let c = Math.floor((2 * this.width) / 4);
-            let objectNodeId = `${r}-${c}`;
+            const r = Math.floor(this.height / 2);
+            const c = Math.floor((2 * this.width) / 4);
+            const objectNodeId = `${r}-${c}`;
             if (this.target === objectNodeId || this.start === objectNodeId || this.numberOfObjects === 1) {
               console.log('Failure to place object.');
             } else {
@@ -984,7 +985,7 @@ class Board {
               document.getElementById(objectNodeId).className = 'object';
             }
           } else {
-            let objectNodeId = this.object;
+            const objectNodeId = this.object;
             document.getElementById('startButtonAddObject').innerHTML = '<a href="#">Add Bomb</a></li>';
             document.getElementById(objectNodeId).className = 'unvisited';
             this.object = null;
@@ -1074,11 +1075,11 @@ class Board {
 
 let counter = 1;
 
-let navbarHeight = $('#navbarDiv').height();
-let textHeight = $('#mainText').height() + $('#algorithmDescriptor').height();
-let height = Math.floor(($(document).height() - navbarHeight - textHeight) / 28);
-let width = Math.floor($(document).width() / 25);
-let newBoard = new Board(height, width);
+const navbarHeight = $('#navbarDiv').height();
+const textHeight = $('#mainText').height() + $('#algorithmDescriptor').height();
+const height = Math.floor(($(document).height() - navbarHeight - textHeight) / 28);
+const width = Math.floor($(document).width() / 25);
+const newBoard = new Board(height, width);
 newBoard.initialise();
 
 window.onkeydown = (e) => {
